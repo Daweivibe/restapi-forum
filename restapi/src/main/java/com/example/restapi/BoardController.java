@@ -1,6 +1,6 @@
 package com.example.restapi;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -8,71 +8,90 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 
+
 @RestController
+@RequestMapping("/threads")
 public class BoardController {
 
-    private List<Board> x = new ArrayList<>();
+    private final ThreadRepository threadRepository;
 
-    public BoardController() {
-        x.add(new Board(1, "Tugboat", "Landyachtz", 199));
-        x.add(new Board(2, "Dinghy", "Landyachtz", 160));
-        x.add(new Board(3, "Bhangra", "Loaded", 320));
+    public BoardController(ThreadRepository threadRepository) {
+        this.threadRepository = threadRepository;
     }
 
-    @GetMapping("/hello")
-    public String hello(){
-        return "hello";
-    }
-   
-    @GetMapping("/hello/{name}")
-    public String world(@PathVariable String name){
-        return "hello " + name;
-    }
-
-    @GetMapping("/boards")
-    public List<Board> getAllBoards(
-        @RequestParam(required = false) String brand,
-        @RequestParam(required = false) Integer maxPrice){
-
-            if(brand == null && maxPrice == null){
-                return x;
+    @GetMapping
+    public List<Thread> getThreads(
+        @RequestParam(required = false) String search){
+            if(search == null || search.trim().isEmpty()) {
+                return threadRepository.findAll();
             }
-
-            List<Board> gefiltert = new ArrayList<>();
-
-            for(Board y : x){
-                boolean bulBrand = (brand == null || y.getBrand().equalsIgnoreCase(brand));
-                boolean bulPrice = (maxPrice == null || y.getPrice() <= maxPrice);
-                if(bulBrand && bulPrice) gefiltert.add(y);
-            }
-            return gefiltert;
+            return threadRepository.searchThreads(search);
         }
+    
         
         
     
 
-    @GetMapping("/boards/{id}")
-    public ResponseEntity<Board> getById(@PathVariable int id){
-        for (Board i:x){
-            if(i.getId() == id) return ResponseEntity.ok(i);
+    @GetMapping("/{id}")
+    public ResponseEntity<Thread> getById(@PathVariable int id){
+        return threadRepository.findById(id).map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+    
+    @PostMapping
+    public ResponseEntity<Thread> createThread(@RequestBody Thread newThread){
+        Thread savedThread = threadRepository.save(newThread);
+        return ResponseEntity.status(201).body(savedThread);
+    }
+
+    @PostMapping("/{id}/replies") 
+    public ResponseEntity<Reply> createReply(@PathVariable Integer id, @RequestBody Reply newReply)
+    {
+        Optional<Thread> threadOptional = threadRepository.findById(id);
+
+        if(threadOptional.isPresent()){
+            Thread thread = threadOptional.get();
+
+            thread.addReply(newReply);
+
+            Thread updated = threadRepository.save(thread);
+
+            Reply saved = updated.getReplies().get(updated.getReplies().size()-1);
+            return ResponseEntity.status(201).body(saved);
+        }
+        else return ResponseEntity.notFound().build();
+        
+    }
+
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteThread(@PathVariable Integer id) {
+        if(threadRepository.existsById(id)){
+            threadRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.notFound().build();
     }
-    
-    @PostMapping("/boards")
-    public Board createBoard(@RequestBody Board newBoard){
-        x.add(newBoard);
-        return newBoard;
-    }
 
-    @DeleteMapping("/boards/{id}")
-    public ResponseEntity<Board> deleteBoard(@PathVariable int id) {
-        boolean entfernt = x.removeIf(board -> board.getId() == id);
-        if(entfernt) return ResponseEntity.noContent().build();
-        else return ResponseEntity.notFound().build();
+    @DeleteMapping("/replies/{replyId}")
+    public ResponseEntity<Void> deleteReply(@PathVariable Integer threadId, @PathVariable Integer replyId) {
+        
+        Optional<Thread> threadOptional = threadRepository.findById(threadId);
+        
+        if(threadOptional.isPresent()){
+            Thread thread = threadOptional.get();
+            boolean removed = thread.getReplies().removeIf(reply -> reply.getId().equals(replyId));
+
+            if(removed) {
+                threadRepository.save(thread);
+                return ResponseEntity.noContent().build();
+            }
+        }
+        return ResponseEntity.notFound().build();
     }
 }
