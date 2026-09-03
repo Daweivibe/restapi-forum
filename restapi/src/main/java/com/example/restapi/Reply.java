@@ -2,10 +2,13 @@ package com.example.restapi;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 
 @Entity
 public class Reply {
@@ -16,8 +19,14 @@ public class Reply {
 
     private String text;
     private String imageUrl;
+    @JsonFormat(pattern = "dd.MM.yyyy HH:mm")
     private LocalDateTime createdAt;
 
+    @PrePersist
+    public void onCreate() {
+    this.createdAt = LocalDateTime.now();
+    }
+    
     public Reply() {
         this.createdAt = LocalDateTime.now();
     }
